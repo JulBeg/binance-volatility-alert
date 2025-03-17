@@ -16,12 +16,14 @@ git clone https://github.com/yourusername/volatility-alert.git
 cd volatility-alert
 ```
 
-2. Configure environment variables in `docker-compose.yml`:
+2. Configure environment variables in `.env.example` and rename it to `.env`:
 ```yaml
 environment:
-	- ALERT_THRESHOLD=5.0
-	- CHECK_INTERVAL=300
-	- QUOTE_CURRENCY=USDT
+  - ALERT_THRESHOLD=5.0
+  - CHECK_INTERVAL=300
+  - QUOTE_CURRENCY=USDT
+  - TELEGRAM_BOT_TOKEN=your_bot_token
+  - TELEGRAM_CHAT_ID=your_chat_id
 ```
 
 3. Run with Docker Compose:
@@ -31,8 +33,7 @@ docker-compose up
 
 ## Upcoming Features
 
-- Add email notifications
-- Add Telegram notifications
+- Add price decrease alerts
 
 ## License
 

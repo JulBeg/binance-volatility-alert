@@ -3,7 +3,5 @@ services:
     build: .
     volumes:
       - .:/app
-    environment:
-      - ALERT_THRESHOLD=3.0
-      - CHECK_INTERVAL=300
-      - QUOTE_CURRENCY=USDT
+    env_file:
+      - .env
