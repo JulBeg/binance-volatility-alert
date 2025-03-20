@@ -23,8 +23,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# In-memory price history
-PRICE_HISTORY = {}
+# In-memory price history with timestamps
+PRICE_HISTORY = {}  # {coin: (price, timestamp)}
 
 def get_all_prices():
     """Fetch all Binance coin prices."""
@@ -69,31 +69,33 @@ while True:
         time.sleep(60)
         continue
 
-    timestamp = time.time()
+    current_time = time.time()
 
     for coin, current_price in current_prices.items():
         if coin.endswith(QUOTE_CURRENCY):
             if coin in PRICE_HISTORY:
-                old_price = PRICE_HISTORY[coin]
+                old_price, old_timestamp = PRICE_HISTORY[coin]
                 if old_price > 0 and current_price > 0:  # Skip if prices are zero
-                    change = ((current_price - old_price) / old_price) * 100
-                    
-                    if change > ALERT_THRESHOLD:
-                        alert_message = f"🚀 ALERT: {coin} increased by {change:.2f}% in {CHECK_INTERVAL/60} minutes!"
-                        logger.warning(alert_message)
-                        try:
-                            # Store alert in file
-                            current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                            with open(ALERT_LOG_FILE, 'a') as f:
-                                f.write(f"\n=== {current_time} ===\n")
-                                f.write(f"{coin}: {change:.2f}% (Price: {current_price:.8f} {QUOTE_CURRENCY})\n")
-                            
-                            # Send Telegram alert
-                            send_telegram_alert(alert_message)
-                        except Exception as e:
-                            logger.error(f"Failed to write to log or send alert: {e}")
+                    time_diff = current_time - old_timestamp
+                    if time_diff >= CHECK_INTERVAL:
+                        change = ((current_price - old_price) / old_price) * 100
+                        
+                        if change > ALERT_THRESHOLD:
+                            alert_message = f"🚀 ALERT: {coin} increased by {change:.2f}% in {time_diff/60:.1f} minutes!"
+                            logger.warning(alert_message)
+                            try:
+                                # Store alert in file
+                                current_time_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                                with open(ALERT_LOG_FILE, 'a') as f:
+                                    f.write(f"\n=== {current_time_str} ===\n")
+                                    f.write(f"{coin}: {change:.2f}% (Price: {current_price:.8f} {QUOTE_CURRENCY})\n")
+                                
+                                # Send Telegram alert
+                                send_telegram_alert(alert_message)
+                            except Exception as e:
+                                logger.error(f"Failed to write to log or send alert: {e}")
 
-            PRICE_HISTORY[coin] = current_price
+            PRICE_HISTORY[coin] = (current_price, current_time)
 
-    logger.info(f"Checked prices, waiting {CHECK_INTERVAL/60} minutes...")
-    time.sleep(CHECK_INTERVAL)
+    logger.info(f"Checked prices, waiting 1 minute...")
+    time.sleep(60)  # Check every minute
