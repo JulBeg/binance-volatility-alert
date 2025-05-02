@@ -9,8 +9,8 @@ from datetime import datetime
 # Configuration
 BINANCE_API_URL = "https://api.binance.com/api/v3/ticker/price"
 ALERT_THRESHOLD = float(os.getenv('ALERT_THRESHOLD', '3.0'))  # Percentage
-TIME_DIFFERENCE = int(os.getenv('TIME_DIFFERENCE', '300'))  # Rolling window in seconds (5 minutes)
-REFRESH_INTERVAL = int(os.getenv('REFRESH_INTERVAL', '60'))  # Price refresh interval in seconds (1 minute)
+TIME_DIFFERENCE = int(os.getenv('TIME_DIFFERENCE', '5'))  # Rolling window in minutes
+REFRESH_INTERVAL = int(os.getenv('REFRESH_INTERVAL', '1'))  # Price refresh interval in minutes
 QUOTE_CURRENCY = os.getenv('QUOTE_CURRENCY', 'USDT')  # Default to USDT
 ALERT_LOG_FILE = "price_alerts.txt"  # File to store price alerts
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
@@ -64,7 +64,7 @@ def send_telegram_alert(message):
         logger.error(f"Failed to send Telegram alert: {e}")
 
 # Send startup configuration
-startup_message = f"🚀 Binance Alert Bot Started\nRefresh Interval: {REFRESH_INTERVAL}s\nTime Window: {TIME_DIFFERENCE}s\nAlert Threshold: {ALERT_THRESHOLD}%"
+startup_message = f"🚀 Binance Alert Bot Started\nRefresh Interval: {REFRESH_INTERVAL} minutes\nTime Window: {TIME_DIFFERENCE} minutes\nAlert Threshold: {ALERT_THRESHOLD}%"
 logger.info(startup_message)
 send_telegram_alert(startup_message)
 
@@ -87,7 +87,7 @@ while True:
             
             # Remove prices older than TIME_DIFFERENCE
             PRICE_HISTORY[coin] = [(p, t) for p, t in PRICE_HISTORY[coin] 
-                                 if current_time - t <= TIME_DIFFERENCE]
+                                 if current_time - t <= TIME_DIFFERENCE * 60]
             
             if len(PRICE_HISTORY[coin]) > 1:
                 # Get the oldest price in our window
@@ -95,7 +95,7 @@ while True:
                 if old_price > 0 and current_price > 0:
                     time_diff = current_time - old_timestamp
                     # Only compare if we have a price that's TIME_DIFFERENCE old or close to it
-                    if time_diff >= TIME_DIFFERENCE * 0.9:  # Allow 90% of intended window
+                    if time_diff >= TIME_DIFFERENCE * 0.9 * 60:  # Allow 90% of intended window
                         change = ((current_price - old_price) / old_price) * 100
                         logger.info(f"Checking {coin} for price change: {change:.2f}% over {time_diff/60:.1f} minutes")
                         
@@ -114,5 +114,5 @@ while True:
                             except Exception as e:
                                 logger.error(f"Failed to write to log or send alert: {e}")
 
-    logger.info(f"Checked prices, waiting {REFRESH_INTERVAL} seconds...")
-    time.sleep(REFRESH_INTERVAL)
+    logger.info(f"Checked prices, waiting {REFRESH_INTERVAL} minutes...")
+    time.sleep(REFRESH_INTERVAL * 60)
