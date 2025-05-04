@@ -23,11 +23,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Send startup configuration
-startup_message = f"🚀 Binance Alert Bot Started\nCheck Interval: {TIME_DIFFERENCE} minutes\nAlert Threshold: {ALERT_THRESHOLD}%"
-logger.info(startup_message)
-send_telegram_alert(startup_message)
-
 # In-memory price history
 PRICE_HISTORY = {}  # {coin: price}
 LAST_CHECK_TIME = 0
@@ -67,6 +62,11 @@ def send_telegram_alert(message):
         response.raise_for_status()
     except Exception as e:
         logger.error(f"Failed to send Telegram alert: {e}")
+
+# Send startup configuration
+startup_message = f"🚀 Binance Alert Bot Started\nCheck Interval: {TIME_DIFFERENCE} minutes\nAlert Threshold: {ALERT_THRESHOLD}%"
+logger.info(startup_message)
+send_telegram_alert(startup_message)
 
 while True:
     current_time = int(time.time())
