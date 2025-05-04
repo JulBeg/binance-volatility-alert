@@ -24,8 +24,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# In-memory price history with timestamps
-PRICE_HISTORY = {}  # {coin: [(price, timestamp), ...]}
+# In-memory price history
+PRICE_HISTORY = {}  # {coin: price}
+LAST_CHECK_TIME = 0
 
 def get_all_prices():
     """Fetch all Binance coin prices."""
@@ -69,42 +70,33 @@ logger.info(startup_message)
 send_telegram_alert(startup_message)
 
 while True:
-    current_prices = get_all_prices()
-    if current_prices is None:
-        logger.warning("Waiting before retry...")
-        time.sleep(60)
-        continue
-
     current_time = int(time.time())
-
-    for coin, current_price in current_prices.items():
-        if coin.endswith(QUOTE_CURRENCY):
-            if coin not in PRICE_HISTORY:
-                PRICE_HISTORY[coin] = []
-            
-            # Add current price to history
-            PRICE_HISTORY[coin].append((current_price, current_time))
-            
-            # Remove prices older than TIME_DIFFERENCE
-            PRICE_HISTORY[coin] = [(p, t) for p, t in PRICE_HISTORY[coin] 
-                                 if current_time - t <= TIME_DIFFERENCE * 60]
-            
-            if len(PRICE_HISTORY[coin]) > 1:
-                # Get the oldest price in our window
-                old_price, old_timestamp = PRICE_HISTORY[coin][0]
-                if old_price > 0 and current_price > 0:
-                    time_diff = current_time - old_timestamp
-                    # Only compare if we have a price that's TIME_DIFFERENCE old or close to it
-                    if time_diff >= TIME_DIFFERENCE * 0.9 * 60:  # Allow 90% of intended window
+    
+    # Only check prices at REFRESH_INTERVAL
+    if current_time - LAST_CHECK_TIME >= REFRESH_INTERVAL * 60:
+        current_prices = get_all_prices()
+        if current_prices is None:
+            logger.warning("Waiting before retry...")
+            time.sleep(60)
+            continue
+        
+        LAST_CHECK_TIME = current_time
+        current_time_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
+        for coin, current_price in current_prices.items():
+            if coin.endswith(QUOTE_CURRENCY):
+                if coin in PRICE_HISTORY:
+                    old_price = PRICE_HISTORY[coin]
+                    if old_price > 0 and current_price > 0:  # Skip if prices are zero
+                        # Calculate change percentage
                         change = ((current_price - old_price) / old_price) * 100
-                        logger.info(f"Checking {coin} for price change: {change:.2f}% over {time_diff/60:.1f} minutes")
+                        logger.info(f"Checking {coin}: price change: {change:.2f}% over {TIME_DIFFERENCE} minutes")
                         
                         if change > ALERT_THRESHOLD:
-                            alert_message = f"🚀 ALERT: {coin} increased by {change:.2f}% in {time_diff/60:.1f} minutes!"
+                            alert_message = f"🚀 ALERT: {coin} increased by {change:.2f}% in {TIME_DIFFERENCE} minutes!"
                             logger.warning(alert_message)
                             try:
                                 # Store alert in file
-                                current_time_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                                 with open(ALERT_LOG_FILE, 'a') as f:
                                     f.write(f"\n=== {current_time_str} ===\n")
                                     f.write(f"{coin}: {change:.2f}% (Price: {current_price:.8f} {QUOTE_CURRENCY})\n")
@@ -113,6 +105,11 @@ while True:
                                 send_telegram_alert(alert_message)
                             except Exception as e:
                                 logger.error(f"Failed to write to log or send alert: {e}")
-
-    logger.info(f"Checked prices, waiting {REFRESH_INTERVAL} minutes...")
-    time.sleep(REFRESH_INTERVAL * 60)
+                
+                # Only update price history every TIME_DIFFERENCE minutes
+                if coin not in PRICE_HISTORY or (current_time - LAST_CHECK_TIME) >= TIME_DIFFERENCE * 60:
+                    PRICE_HISTORY[coin] = current_price
+        
+        logger.info(f"Checked prices, waiting {REFRESH_INTERVAL} minutes...")
+    
+    time.sleep(min(60, REFRESH_INTERVAL * 60))  # Sleep for at most 1 minute to keep responsive
