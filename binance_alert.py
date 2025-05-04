@@ -10,7 +10,6 @@ from datetime import datetime
 BINANCE_API_URL = "https://api.binance.com/api/v3/ticker/price"
 ALERT_THRESHOLD = float(os.getenv('ALERT_THRESHOLD', '3.0'))  # Percentage
 TIME_DIFFERENCE = int(os.getenv('TIME_DIFFERENCE', '5'))  # Rolling window in minutes
-REFRESH_INTERVAL = int(os.getenv('REFRESH_INTERVAL', '1'))  # Price refresh interval in minutes
 QUOTE_CURRENCY = os.getenv('QUOTE_CURRENCY', 'USDT')  # Default to USDT
 ALERT_LOG_FILE = "price_alerts.txt"  # File to store price alerts
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
@@ -23,6 +22,11 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+# Send startup configuration
+startup_message = f"🚀 Binance Alert Bot Started\nCheck Interval: {TIME_DIFFERENCE} minutes\nAlert Threshold: {ALERT_THRESHOLD}%"
+logger.info(startup_message)
+send_telegram_alert(startup_message)
 
 # In-memory price history
 PRICE_HISTORY = {}  # {coin: price}
@@ -64,23 +68,17 @@ def send_telegram_alert(message):
     except Exception as e:
         logger.error(f"Failed to send Telegram alert: {e}")
 
-# Send startup configuration
-startup_message = f"🚀 Binance Alert Bot Started\nRefresh Interval: {REFRESH_INTERVAL} minutes\nTime Window: {TIME_DIFFERENCE} minutes\nAlert Threshold: {ALERT_THRESHOLD}%"
-logger.info(startup_message)
-send_telegram_alert(startup_message)
-
 while True:
     current_time = int(time.time())
     
-    # Only check prices at REFRESH_INTERVAL
-    if current_time - LAST_CHECK_TIME >= REFRESH_INTERVAL * 60:
+    # Check prices every TIME_DIFFERENCE minutes
+    if current_time - LAST_CHECK_TIME >= TIME_DIFFERENCE * 60:
         current_prices = get_all_prices()
         if current_prices is None:
             logger.warning("Waiting before retry...")
             time.sleep(60)
             continue
         
-        LAST_CHECK_TIME = current_time
         current_time_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         
         for coin, current_price in current_prices.items():
@@ -106,10 +104,10 @@ while True:
                             except Exception as e:
                                 logger.error(f"Failed to write to log or send alert: {e}")
                 
-                # Only update price history every TIME_DIFFERENCE minutes
-                if coin not in PRICE_HISTORY or (current_time - LAST_CHECK_TIME) >= TIME_DIFFERENCE * 60:
-                    PRICE_HISTORY[coin] = current_price
+                # Update price history
+                PRICE_HISTORY[coin] = current_price
         
-        logger.info(f"Checked prices, waiting {REFRESH_INTERVAL} minutes...")
+        LAST_CHECK_TIME = current_time
+        logger.info(f"Checked prices, waiting {TIME_DIFFERENCE} minutes...")
     
-    time.sleep(min(60, REFRESH_INTERVAL * 60))  # Sleep for at most 1 minute to keep responsive
+    time.sleep(60)  # Sleep for 1 minute then check if it's time to check prices
